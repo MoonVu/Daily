@@ -1,0 +1,123 @@
+<!DOCTYPE html>
+<html lang="vi">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Quản lý kho</title>
+    <link rel="stylesheet" href="/src/styles.css" />
+    <script src="/src/app.js" defer></script>
+  </head>
+  <body>
+    <header class="app-header">
+      <video
+        class="app-header__video"
+        src="banner.mp4"
+        autoplay
+        muted
+        loop
+        playsinline
+      ></video>
+      <div class="app-header__overlay"></div>
+      <div class="app-header__content">
+        <div class="brand">
+          <a href="/trang-chu" class="brand-link" aria-label="Trang chủ">
+            <img src="logo.png" alt="LOGO" class="brand-logo" />
+          </a>
+        </div>
+        <nav class="main-nav" aria-label="Điều hướng chính">
+          <div class="nav-item">
+            <a href="/trang-chu" class="nav-link" data-route="trang-chu"
+              >Trang chủ</a
+            >
+          </div>
+          <div class="nav-item has-submenu">
+            <button class="nav-link nav-button" data-route="nha-cung-cap">
+              Nhà cung cấp
+              <span class="nav-caret" aria-hidden="true">▾</span>
+            </button>
+            <div class="submenu">
+              <a
+                href="/nha-cung-cap"
+                class="submenu-link"
+                data-route="nha-cung-cap"
+                >Tổng quan</a
+              >
+              <a
+                href="/nha-cung-cap/test"
+                class="submenu-link"
+                data-route="nha-cung-cap/test"
+                >Test</a
+              >
+            </div>
+          </div>
+          <div class="nav-item has-submenu">
+            <button class="nav-link nav-button" data-route="san-pham">
+              Sản phẩm
+              <span class="nav-caret" aria-hidden="true">▾</span>
+            </button>
+            <div class="submenu">
+              <a href="/san-pham" class="submenu-link" data-route="san-pham"
+                >Danh sách</a
+              >
+              <a
+                href="/san-pham/test"
+                class="submenu-link"
+                data-route="san-pham/test"
+                >Test</a
+              >
+            </div>
+          </div>
+          <div class="nav-item has-submenu">
+            <button class="nav-link nav-button" data-route="bao-cao">
+              Báo cáo
+              <span class="nav-caret" aria-hidden="true">▾</span>
+            </button>
+            <div class="submenu">
+              <a href="/bao-cao" class="submenu-link" data-route="bao-cao"
+                >Tổng quan</a
+              >
+              <a
+                href="/bao-cao/test"
+                class="submenu-link"
+                data-route="bao-cao/test"
+                >Test</a
+              >
+            </div>
+          </div>
+        </nav>
+      </div>
+    </header>
+    <main class="content-area">
+      <section class="data-placeholder">
+        <h1 id="page-title">Khu vực dữ liệu</h1>
+        <p id="page-description">Thông tin nhập xuất sẽ hiển thị tại đây.</p>
+        <button class="btn btn-primary" data-modal-target="app-modal">
+          Xem modal mẫu
+        </button>
+      </section>
+    </main>
+
+    <section class="modal" id="app-modal" aria-hidden="true">
+      <div class="modal__overlay" data-modal-close></div>
+      <div class="modal__container" role="dialog" aria-modal="true">
+        <header class="modal__header">
+          <h2 class="modal__title">Tiêu đề modal</h2>
+          <button class="modal__close" data-modal-close aria-label="Đóng modal">
+            ×
+          </button>
+        </header>
+        <div class="modal__body">
+          <p>
+            Đây là component modal dùng chung. Có thể tái sử dụng bằng cách
+            thay nội dung trong phần body và footer.
+          </p>
+        </div>
+        <footer class="modal__footer">
+          <button class="btn btn-secondary" data-modal-close>Đóng</button>
+          <button class="btn btn-primary">Lưu lại</button>
+        </footer>
+      </div>
+    </section>
+  </body>
+</html>
+
