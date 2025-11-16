@@ -5,6 +5,7 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>Quản lý kho</title>
     <link rel="stylesheet" href="/src/styles.css" />
+    <script src="/src/components/thongkesanpham.js" defer></script>
     <script src="/src/app.js" defer></script>
   </head>
   <body>
@@ -57,7 +58,7 @@
             </button>
             <div class="submenu">
               <a href="/san-pham" class="submenu-link" data-route="san-pham"
-                >Danh sách</a
+                >Thống kê sản phẩm</a
               >
               <a
                 href="/san-pham/test"
@@ -87,14 +88,7 @@
         </nav>
       </div>
     </header>
-    <main class="content-area">
-      <section class="data-placeholder">
-        <h1 id="page-title">Khu vực dữ liệu</h1>
-        <p id="page-description">Thông tin nhập xuất sẽ hiển thị tại đây.</p>
-        <button class="btn btn-primary" data-modal-target="app-modal">
-          Xem modal mẫu
-        </button>
-      </section>
+    <main id="app-root" class="app-main"></main>
     </main>
 
     <section class="modal" id="app-modal" aria-hidden="true">

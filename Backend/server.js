@@ -2,8 +2,14 @@ import express from 'express';
 import mongoose from 'mongoose';
 import cors from 'cors';
 import dotenv from 'dotenv';
+import path from 'path';
+import { fileURLToPath } from 'url';
+import productsRouter from './routes/products.js';
 
 dotenv.config();
+
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = path.dirname(__filename);
 
 const app = express();
 const PORT = Number(process.env.PORT || 8000);
@@ -14,6 +20,9 @@ const mongoUri =
 
 app.use(cors());
 app.use(express.json());
+
+// Serve uploaded images
+app.use('/uploads', express.static(path.join(__dirname, 'uploads')));
 
 mongoose
   .connect(mongoUri, {
@@ -34,6 +43,9 @@ app.get('/api/health', (_req, res) => {
     mongo: mongoose.connection.readyState,
   });
 });
+
+// Products routes
+app.use('/api/products', productsRouter);
 
 app.get('/', (_req, res) => {
   res.send('Backend API is running. Use /api routes.');

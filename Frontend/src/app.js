@@ -23,7 +23,13 @@ class ModalManager {
       const closeTrigger = event.target.closest('[data-modal-close]');
       if (closeTrigger) {
         const modal = closeTrigger.closest('.modal');
-        if (modal) this.close(modal.id);
+        if (modal && modal.id) {
+          // Auto-register if not already registered
+          if (!this.modals.has(modal.id)) {
+            this.modals.set(modal.id, modal);
+          }
+          this.close(modal.id);
+        }
       }
     });
 
@@ -35,7 +41,15 @@ class ModalManager {
   }
 
   open(id) {
-    const modal = this.modals.get(id);
+    let modal = this.modals.get(id);
+    // Auto-register modal if not found (for dynamically created modals)
+    if (!modal) {
+      modal = document.getElementById(id);
+      if (modal && modal.classList.contains('modal')) {
+        this.modals.set(id, modal);
+        modal.dataset.open = 'false';
+      }
+    }
     if (!modal) return;
     modal.dataset.open = 'true';
     modal.setAttribute('aria-hidden', 'false');
@@ -49,25 +63,89 @@ class ModalManager {
   }
 
   close(id) {
-    const modal = this.modals.get(id);
+    let modal = this.modals.get(id);
+    // Auto-register modal if not found (for dynamically created modals)
+    if (!modal && id) {
+      modal = document.getElementById(id);
+      if (modal && modal.classList.contains('modal')) {
+        this.modals.set(id, modal);
+      }
+    }
     if (!modal) return;
     modal.dataset.open = 'false';
     modal.setAttribute('aria-hidden', 'true');
   }
 }
 
+class ComponentManager {
+  constructor(rootSelector) {
+    this.root = document.querySelector(rootSelector);
+    this.components = new Map();
+  }
+
+  register(route, component) {
+    if (!route || !component) return;
+    this.components.set(route, component);
+  }
+
+  render(route) {
+    if (!this.root) return;
+    const targetRoute = this.resolveRoute(route);
+
+    this.root.replaceChildren();
+
+    if (!targetRoute) return;
+
+    const component = this.components.get(targetRoute);
+    if (!component || typeof component.render !== 'function') return;
+
+    const rendered = component.render();
+    if (rendered instanceof HTMLElement) {
+      this.root.appendChild(rendered);
+    } else if (typeof rendered === 'string') {
+      this.root.innerHTML = rendered;
+    }
+  }
+
+  resolveRoute(route) {
+    if (!route) return this.components.has('default') ? 'default' : null;
+
+    if (this.components.has(route)) {
+      return route;
+    }
+
+    const segments = route.split('/');
+    while (segments.length > 1) {
+      segments.pop();
+      const candidate = segments.join('/');
+      if (this.components.has(candidate)) {
+        return candidate;
+      }
+    }
+
+    return this.components.has('default') ? 'default' : null;
+  }
+}
+
 document.addEventListener('DOMContentLoaded', () => {
+  const componentManager = new ComponentManager('#app-root');
+
+  if (window.ThongKeSanPham) {
+    componentManager.register('san-pham', new window.ThongKeSanPham());
+  }
+
   new ModalManager();
 
-  const nav = new NavigationManager();
+  const nav = new NavigationManager(componentManager);
   nav.init();
 });
 
 class NavigationManager {
-  constructor() {
+  constructor(componentManager) {
     this.navItems = document.querySelectorAll('.nav-item');
     this.pageTitle = document.getElementById('page-title');
     this.pageDescription = document.getElementById('page-description');
+    this.componentManager = componentManager;
     this.titleMap = {
       '': {
         title: 'Khu vực dữ liệu',
@@ -111,6 +189,7 @@ class NavigationManager {
   init() {
     this.syncActiveState();
     this.attachEvents();
+    window.addEventListener('popstate', () => this.syncActiveState());
   }
 
   attachEvents() {
@@ -118,16 +197,10 @@ class NavigationManager {
       const button = item.querySelector('.nav-button');
       if (!button) return;
 
-      button.addEventListener('click', () => {
+      button.addEventListener('click', (event) => {
+        event.preventDefault();
         const targetRoute = button.dataset.route;
-        const submenuLink = item.querySelector(
-          `.submenu-link[data-route="${targetRoute}"]`
-        );
-        if (submenuLink) {
-          window.location.assign(submenuLink.href);
-        } else {
-          window.location.assign(`/${targetRoute}`);
-        }
+        this.navigate(targetRoute);
       });
 
       item.addEventListener('pointerenter', () => {
@@ -153,6 +226,39 @@ class NavigationManager {
         item.dataset.open = 'false';
       });
     });
+
+    document.querySelectorAll('.nav-link[data-route]:not(.nav-button)').forEach((link) => {
+      link.addEventListener('click', (event) => {
+        event.preventDefault();
+        const targetRoute = link.dataset.route;
+        this.navigate(targetRoute);
+      });
+    });
+
+    document.querySelectorAll('.submenu-link[data-route]').forEach((link) => {
+      link.addEventListener('click', (event) => {
+        event.preventDefault();
+        const targetRoute = link.dataset.route;
+        this.navigate(targetRoute);
+      });
+    });
+  }
+
+  navigate(route) {
+    if (!route) return;
+
+    const normalizedRoute = route;
+    const currentPath = window.location.pathname.replace(/^\//, '') || 'trang-chu';
+
+    if (currentPath === normalizedRoute || (currentPath === 'trang-chu' && normalizedRoute === '')) {
+      this.syncActiveState();
+      return;
+    }
+
+    const urlPath = normalizedRoute === 'trang-chu' ? '/' : `/${normalizedRoute}`;
+
+    window.history.pushState({ route: normalizedRoute }, '', urlPath);
+    this.syncActiveState();
   }
 
   syncActiveState() {
@@ -182,6 +288,8 @@ class NavigationManager {
       this.titleMap[normalizedPath] || this.titleMap[parentRoute] || this.titleMap[''];
     if (this.pageTitle) this.pageTitle.textContent = meta.title;
     if (this.pageDescription) this.pageDescription.textContent = meta.description;
+
+    this.componentManager?.render(normalizedPath);
   }
 }
 

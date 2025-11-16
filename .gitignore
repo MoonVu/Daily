@@ -31,7 +31,7 @@ Thumbs.db
 # Log files in workspaces
 Frontend/npm-debug.log*
 Backend/npm-debug.log*
-
+Backend/uploads/
 # Coverage
 coverage/
 
