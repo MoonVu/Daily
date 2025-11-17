@@ -5,6 +5,8 @@ import dotenv from 'dotenv';
 import path from 'path';
 import { fileURLToPath } from 'url';
 import productsRouter from './routes/products.js';
+import workshopsRouter from './routes/workshops.js';
+import Workshop from './models/Workshop.js';
 
 dotenv.config();
 
@@ -31,6 +33,7 @@ mongoose
   .then(async () => {
     console.log('Connected to MongoDB');
     await ensureDatabaseInitialized();
+    await ensureDefaultWorkshops();
   })
   .catch((error) => {
     console.error('MongoDB connection error:', error.message);
@@ -46,6 +49,9 @@ app.get('/api/health', (_req, res) => {
 
 // Products routes
 app.use('/api/products', productsRouter);
+
+// Workshops routes
+app.use('/api/workshops', workshopsRouter);
 
 app.get('/', (_req, res) => {
   res.send('Backend API is running. Use /api routes.');
@@ -81,6 +87,22 @@ async function ensureDatabaseInitialized() {
     );
   } catch (error) {
     console.error('Failed to initialize MongoDB database:', error.message);
+  }
+}
+
+async function ensureDefaultWorkshops() {
+  try {
+    const defaultWorkshops = ['Trung Quốc', 'Việt Nam'];
+    
+    for (const workshopName of defaultWorkshops) {
+      const existingWorkshop = await Workshop.findOne({ name: workshopName });
+      if (!existingWorkshop) {
+        await Workshop.create({ name: workshopName });
+        console.log(`Created default workshop: ${workshopName}`);
+      }
+    }
+  } catch (error) {
+    console.error('Failed to ensure default workshops:', error.message);
   }
 }
 

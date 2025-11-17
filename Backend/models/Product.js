@@ -33,14 +33,17 @@ const productSchema = new mongoose.Schema({
     required: true,
     min: 0
   },
-  warehouseEntryDate: {
-    type: Date
-  },
-  warehouseQuantity: {
-    type: Number,
-    min: 0,
-    default: 0
-  },
+  warehouseEntries: [{
+    date: {
+      type: Date,
+      required: true
+    },
+    quantity: {
+      type: Number,
+      required: true,
+      min: 0
+    }
+  }],
   imagePath: {
     type: String
   },

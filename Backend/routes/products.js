@@ -142,12 +142,87 @@ router.put('/:id', (req, res, next) => {
       updateData.status = req.body.status;
     }
     
-    // Handle warehouse fields (can be updated separately)
-    if (req.body.warehouseEntryDate !== undefined) {
-      updateData.warehouseEntryDate = req.body.warehouseEntryDate ? new Date(req.body.warehouseEntryDate) : null;
+    // Handle warehouse entries (can be updated separately)
+    if (req.body.warehouseEntries !== undefined) {
+      // If it's an array, update the entire array
+      if (Array.isArray(req.body.warehouseEntries)) {
+        updateData.warehouseEntries = req.body.warehouseEntries.map(entry => ({
+          date: entry.date ? new Date(entry.date) : new Date(),
+          quantity: parseInt(entry.quantity) || 0
+        }));
+      }
     }
-    if (req.body.warehouseQuantity !== undefined) {
-      updateData.warehouseQuantity = parseInt(req.body.warehouseQuantity) || 0;
+    // Handle adding a new warehouse entry (from the "Nhập kho" button)
+    if (req.body.addWarehouseEntry !== undefined && (req.body.addWarehouseEntry === 'true' || req.body.addWarehouseEntry === true)) {
+      const entryDateStr = req.body.warehouseEntryDate;
+      let entryDate;
+      if (entryDateStr) {
+        entryDate = new Date(entryDateStr);
+        if (isNaN(entryDate.getTime())) {
+          return res.status(400).json({ error: 'Ngày tháng không hợp lệ' });
+        }
+      } else {
+        entryDate = new Date();
+      }
+      
+      const entryQuantity = parseInt(req.body.warehouseQuantity) || 0;
+      if (entryQuantity <= 0) {
+        return res.status(400).json({ error: 'Số lượng phải lớn hơn 0' });
+      }
+      
+      // Get current entries and add new one
+      const currentEntries = (product.warehouseEntries && Array.isArray(product.warehouseEntries)) ? product.warehouseEntries : [];
+      const totalQuantity = currentEntries.reduce((sum, entry) => sum + (entry.quantity || 0), 0);
+      
+      // Validate total doesn't exceed product quantity
+      if (totalQuantity + entryQuantity > product.quantity) {
+        return res.status(400).json({ 
+          error: `Tổng số lượng nhập kho (${totalQuantity + entryQuantity}) không được vượt quá số lượng sản phẩm (${product.quantity})` 
+        });
+      }
+      
+      const newEntry = {
+        date: entryDate,
+        quantity: entryQuantity
+      };
+      
+      updateData.warehouseEntries = [...currentEntries, newEntry];
+    }
+    // Handle updating a specific warehouse entry
+    if (req.body.updateWarehouseEntry !== undefined) {
+      const entryIndex = parseInt(req.body.entryIndex);
+      const entryDate = req.body.warehouseEntryDate ? new Date(req.body.warehouseEntryDate) : null;
+      const entryQuantity = parseInt(req.body.warehouseQuantity);
+      
+      if (entryIndex >= 0 && product.warehouseEntries && product.warehouseEntries[entryIndex]) {
+        const currentEntries = [...product.warehouseEntries];
+        const totalQuantity = currentEntries.reduce((sum, entry, idx) => {
+          if (idx === entryIndex) return sum;
+          return sum + (entry.quantity || 0);
+        }, 0);
+        
+        // Validate total doesn't exceed product quantity
+        if (totalQuantity + entryQuantity > product.quantity) {
+          return res.status(400).json({ 
+            error: `Tổng số lượng nhập kho (${totalQuantity + entryQuantity}) không được vượt quá số lượng sản phẩm (${product.quantity})` 
+          });
+        }
+        
+        currentEntries[entryIndex] = {
+          date: entryDate || currentEntries[entryIndex].date,
+          quantity: entryQuantity
+        };
+        updateData.warehouseEntries = currentEntries;
+      }
+    }
+    // Handle deleting a warehouse entry
+    if (req.body.deleteWarehouseEntry !== undefined) {
+      const entryIndex = parseInt(req.body.entryIndex);
+      if (entryIndex >= 0 && product.warehouseEntries && product.warehouseEntries[entryIndex]) {
+        const currentEntries = [...product.warehouseEntries];
+        currentEntries.splice(entryIndex, 1);
+        updateData.warehouseEntries = currentEntries;
+      }
     }
 
     if (req.file) {
@@ -163,11 +238,19 @@ router.put('/:id', (req, res, next) => {
       updateData.imagePath = null;
     }
 
+    if (Object.keys(updateData).length === 0) {
+      return res.status(400).json({ error: 'Không có dữ liệu để cập nhật' });
+    }
+
     const updatedProduct = await Product.findByIdAndUpdate(
       req.params.id,
       updateData,
       { new: true, runValidators: true }
     );
+
+    if (!updatedProduct) {
+      return res.status(404).json({ error: 'Không tìm thấy sản phẩm' });
+    }
 
     res.json(updatedProduct);
   } catch (error) {

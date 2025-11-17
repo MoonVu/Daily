@@ -2,8 +2,15 @@ class ThongKeSanPham {
   constructor() {
     this.API_BASE_URL = 'http://172.16.1.6:8000/api';
     this.products = [];
+    this.filteredProducts = [];
+    this.workshops = [];
     this.editingProductId = null;
     this.warehouseProductId = null;
+    this.warehouseEntryIndex = null;
+    this.filters = {
+      search: '',
+      status: ''
+    };
   }
 
   render() {
@@ -21,10 +28,11 @@ class ThongKeSanPham {
             <div class="thongkesanpham__filter-controls">
               <input
                 type="text"
+                id="filter-search"
                 class="thongkesanpham__input"
-                placeholder="Tìm theo mã hoặc tên sản phẩm"
+                placeholder="Tìm theo mã, tên sản phẩm hoặc xưởng"
               />
-              <select class="thongkesanpham__select">
+              <select id="filter-status" class="thongkesanpham__select">
                 <option value="">Trạng thái</option>
                 <option value="waiting">Đang chờ hàng</option>
                 <option value="received">Đã nhận hàng</option>
@@ -32,8 +40,7 @@ class ThongKeSanPham {
                 <option value="sampling">Đang xin mẫu</option>
               </select>
               <div class="thongkesanpham__filter-actions">
-                <button class="btn btn-secondary" type="button">Đặt lại</button>
-                <button class="btn btn-primary" type="button">Áp dụng</button>
+                <button class="btn btn-secondary" type="button" id="reset-filter">Đặt lại</button>
               </div>
             </div>
           </div>
@@ -163,7 +170,7 @@ class ThongKeSanPham {
               </div>
 
               <div class="modal__form-group">
-                <label class="modal__label" for="product-image">Ảnh mẫu</label>
+                <label class="modal__label">Ảnh mẫu</label>
                 <input
                   type="file"
                   id="product-image"
@@ -226,9 +233,20 @@ class ThongKeSanPham {
                 <label class="modal__label" for="workshop">Xưởng</label>
                 <select id="workshop" class="modal__select">
                   <option value="">Chọn xưởng</option>
-                  <option value="Trung Quốc">Trung Quốc</option>
-                  <option value="Việt Nam">Việt Nam</option>
                 </select>
+                <div id="workshop-new-input-wrapper" style="display: none; margin-top: 8px;">
+                  <input
+                    type="text"
+                    id="workshop-new-name"
+                    class="modal__input"
+                    placeholder="Nhập tên xưởng mới"
+                    style="margin-bottom: 8px;"
+                  />
+                  <div style="display: flex; gap: 8px;">
+                    <button type="button" id="workshop-save-btn" class="btn btn-primary" style="flex: 1; padding: 8px;">Lưu</button>
+                    <button type="button" id="workshop-cancel-btn" class="btn btn-secondary" style="flex: 1; padding: 8px;">Hủy</button>
+                  </div>
+                </div>
               </div>
             </form>
           </div>
@@ -336,7 +354,7 @@ class ThongKeSanPham {
               </div>
 
               <div class="modal__form-group">
-                <label class="modal__label" for="edit-product-image">Ảnh mẫu</label>
+                <label class="modal__label">Ảnh mẫu</label>
                 <input
                   type="file"
                   id="edit-product-image"
@@ -400,9 +418,20 @@ class ThongKeSanPham {
                 <label class="modal__label" for="edit-workshop">Xưởng</label>
                 <select id="edit-workshop" class="modal__select">
                   <option value="">Chọn xưởng</option>
-                  <option value="Trung Quốc">Trung Quốc</option>
-                  <option value="Việt Nam">Việt Nam</option>
                 </select>
+                <div id="edit-workshop-new-input-wrapper" style="display: none; margin-top: 8px;">
+                  <input
+                    type="text"
+                    id="edit-workshop-new-name"
+                    class="modal__input"
+                    placeholder="Nhập tên xưởng mới"
+                    style="margin-bottom: 8px;"
+                  />
+                  <div style="display: flex; gap: 8px;">
+                    <button type="button" id="edit-workshop-save-btn" class="btn btn-primary" style="flex: 1; padding: 8px;">Lưu</button>
+                    <button type="button" id="edit-workshop-cancel-btn" class="btn btn-secondary" style="flex: 1; padding: 8px;">Hủy</button>
+                  </div>
+                </div>
               </div>
             </form>
           </div>
@@ -432,7 +461,7 @@ class ThongKeSanPham {
         <div class="modal__overlay" data-modal-close></div>
         <div class="modal__container">
           <div class="modal__header">
-            <h2 class="modal__title">Nhập kho</h2>
+            <h2 class="modal__title" id="warehouse-modal-title">Nhập kho</h2>
             <button class="modal__close" data-modal-close aria-label="Đóng">×</button>
           </div>
           <div class="modal__body">
@@ -456,11 +485,14 @@ class ThongKeSanPham {
                   min="0"
                   required
                 />
+                <div id="warehouse-max-quantity" style="margin-top: 4px; font-size: 0.875rem; color: #666;"></div>
               </div>
+              <input type="hidden" id="warehouse-entry-index" value="" />
             </form>
           </div>
           <div class="modal__footer">
             <button type="button" class="btn btn-secondary" data-modal-close>Hủy</button>
+            <button type="button" id="warehouse-delete-btn" class="btn btn-danger" style="display: none;">Xóa</button>
             <button type="submit" form="warehouse-form" class="btn btn-primary">Lưu</button>
           </div>
         </div>
@@ -470,10 +502,60 @@ class ThongKeSanPham {
     // Attach event listeners after rendering
     setTimeout(() => {
       this.attachEvents(section);
+      this.loadWorkshops(section);
       this.loadProducts(section);
     }, 0);
 
     return section;
+  }
+
+  async loadWorkshops(section) {
+    try {
+      const response = await fetch(`${this.API_BASE_URL}/workshops`);
+      if (!response.ok) throw new Error('Không thể tải danh sách xưởng');
+      this.workshops = await response.json();
+      this.populateWorkshopDropdowns(section);
+    } catch (error) {
+      console.error('Error loading workshops:', error);
+      // Fallback to default workshops if API fails
+      this.workshops = [
+        { _id: '1', name: 'Trung Quốc' },
+        { _id: '2', name: 'Việt Nam' }
+      ];
+      this.populateWorkshopDropdowns(section);
+    }
+  }
+
+  populateWorkshopDropdowns(section) {
+    const workshopSelect = section.querySelector('#workshop');
+    const editWorkshopSelect = section.querySelector('#edit-workshop');
+    
+    const populateSelect = (select) => {
+      if (!select) return;
+      // Clear existing options except the first one
+      while (select.options.length > 1) {
+        select.remove(1);
+      }
+      
+      // Add workshops
+      this.workshops.forEach(workshop => {
+        const option = document.createElement('option');
+        option.value = workshop.name;
+        option.textContent = workshop.name;
+        select.appendChild(option);
+      });
+      
+      // Add "Thêm xưởng mới" option
+      const addNewOption = document.createElement('option');
+      addNewOption.value = '__add_new__';
+      addNewOption.textContent = 'Thêm xưởng mới';
+      addNewOption.style.color = '#ff6b00';
+      addNewOption.style.fontWeight = '600';
+      select.appendChild(addNewOption);
+    };
+    
+    populateSelect(workshopSelect);
+    populateSelect(editWorkshopSelect);
   }
 
   async loadProducts(section) {
@@ -481,7 +563,7 @@ class ThongKeSanPham {
       const response = await fetch(`${this.API_BASE_URL}/products`);
       if (!response.ok) throw new Error('Không thể tải dữ liệu');
       this.products = await response.json();
-      this.renderTable(section);
+      this.applyFilters(section);
     } catch (error) {
       console.error('Error loading products:', error);
       const tbody = section.querySelector('.thongkesanpham__table tbody');
@@ -491,16 +573,42 @@ class ThongKeSanPham {
     }
   }
 
+  applyFilters(section) {
+    let filtered = [...this.products];
+
+    // Filter by search (mã, tên, xưởng)
+    if (this.filters.search) {
+      const searchLower = this.filters.search.toLowerCase();
+      filtered = filtered.filter(product => {
+        const code = (product.productCode || '').toLowerCase();
+        const name = (product.productName || '').toLowerCase();
+        const workshop = (product.workshop || '').toLowerCase();
+        return code.includes(searchLower) || name.includes(searchLower) || workshop.includes(searchLower);
+      });
+    }
+
+    // Filter by status
+    if (this.filters.status) {
+      filtered = filtered.filter(product => product.status === this.filters.status);
+    }
+
+    this.filteredProducts = filtered;
+    this.renderTable(section);
+  }
+
   renderTable(section) {
     const tbody = section.querySelector('.thongkesanpham__table tbody');
     if (!tbody) return;
 
-    if (this.products.length === 0) {
-      tbody.innerHTML = '<tr class="thongkesanpham__empty-row"><td colspan="13">Chưa có dữ liệu hiển thị. Vui lòng thêm sản phẩm mới.</td></tr>';
+    if (this.filteredProducts.length === 0) {
+      const message = this.products.length === 0 
+        ? 'Chưa có dữ liệu hiển thị. Vui lòng thêm sản phẩm mới.'
+        : 'Không tìm thấy sản phẩm nào phù hợp với bộ lọc.';
+      tbody.innerHTML = `<tr class="thongkesanpham__empty-row"><td colspan="13">${message}</td></tr>`;
       return;
     }
 
-    tbody.innerHTML = this.products.map((product, index) => {
+    tbody.innerHTML = this.filteredProducts.map((product, index) => {
       // Hiển thị range date
       const orderDateFrom = this.formatDate(product.orderDate);
       const orderDateTo = this.formatDate(product.orderDateTo || product.orderDate);
@@ -580,7 +688,60 @@ class ThongKeSanPham {
             <div>${statusSelect}</div>
             ${warehouseButton}
           </td>
-          <td>${this.formatNumber(product.quantity || 0)}</td>
+          <td>
+            <div style="display: flex; flex-direction: column; gap: 4px;">
+              <div>${this.formatNumber(product.quantity || 0)}</div>
+              ${(product.warehouseEntries && product.warehouseEntries.length > 0) || product.status === 'received' ? `
+                <div style="display: flex; flex-direction: column; gap: 2px; margin-top: 4px;">
+                  ${product.warehouseEntries && product.warehouseEntries.length > 0 ? (() => {
+                    // Sort entries by date (newest first) and map to original indices
+                    const sortedEntries = product.warehouseEntries.map((entry, idx) => ({
+                      ...entry,
+                      originalIndex: idx
+                    })).sort((a, b) => {
+                      const dateA = a.date ? new Date(a.date).getTime() : 0;
+                      const dateB = b.date ? new Date(b.date).getTime() : 0;
+                      return dateB - dateA; // Newest first
+                    });
+                    
+                    return sortedEntries.map((entry) => {
+                      const entryDate = entry.date ? this.formatDate(entry.date) : '-';
+                      return `
+                        <div 
+                          class="warehouse-entry-item" 
+                          data-product-id="${product._id}"
+                          data-entry-index="${entry.originalIndex}"
+                          style="
+                            display: flex;
+                            align-items: center;
+                            gap: 8px;
+                            padding: 4px 8px;
+                            background-color: #e8f5e9;
+                            border-radius: 8px;
+                            font-size: 0.75rem;
+                            cursor: pointer;
+                            transition: all 0.2s ease;
+                            border: 1px solid #c8e6c9;
+                          "
+                          onmouseover="this.style.backgroundColor='#c8e6c9'"
+                          onmouseout="this.style.backgroundColor='#e8f5e9'"
+                        >
+                          <span style="color: #666; min-width: 80px;">${entryDate}</span>
+                          <span style="color: #2e7d32; font-weight: 600;">-</span>
+                          <span style="color: #2e7d32; font-weight: 600;">${this.formatNumber(entry.quantity || 0)}</span>
+                        </div>
+                      `;
+                    }).join('');
+                  })() : ''}
+                  ${product.status === 'received' && (!product.warehouseEntries || product.warehouseEntries.length === 0) ? `
+                    <div style="font-size: 0.75rem; color: #999; font-style: italic; padding: 4px 8px;">
+                      Chưa có lần nhập kho
+                    </div>
+                  ` : ''}
+                </div>
+              ` : ''}
+            </div>
+          </td>
           <td>${imageCell}</td>
           <td>${priceCell}</td>
           <td>${this.formatNumber(product.shippingCost || 0)}</td>
@@ -617,6 +778,15 @@ class ThongKeSanPham {
       btn.addEventListener('click', (e) => {
         const productId = e.target.dataset.warehouseProduct;
         this.openWarehouseModal(section, productId);
+      });
+    });
+
+    // Attach event listeners for warehouse entry items
+    tbody.querySelectorAll('.warehouse-entry-item').forEach(item => {
+      item.addEventListener('click', (e) => {
+        const productId = item.dataset.productId;
+        const entryIndex = parseInt(item.dataset.entryIndex);
+        this.openWarehouseModal(section, productId, entryIndex);
       });
     });
 
@@ -732,7 +902,18 @@ class ThongKeSanPham {
     section.querySelector('#edit-price-vnd').value = this.formatNumber(product.priceVND || 0);
     section.querySelector('#edit-shipping-cost').value = this.formatNumber(product.shippingCost || 0);
     section.querySelector('#edit-packaging-cost').value = this.formatNumber(product.packagingCost || 0);
+    
+    // Ensure workshop dropdown is populated before setting value
+    this.populateWorkshopDropdowns(section);
     section.querySelector('#edit-workshop').value = product.workshop || '';
+    
+    // Reset workshop new input wrapper
+    const editWorkshopNewWrapper = section.querySelector('#edit-workshop-new-input-wrapper');
+    if (editWorkshopNewWrapper) {
+      editWorkshopNewWrapper.style.display = 'none';
+      const editWorkshopNewName = section.querySelector('#edit-workshop-new-name');
+      if (editWorkshopNewName) editWorkshopNewName.value = '';
+    }
 
     // Show existing image if available
     const imagePreview = section.querySelector('#edit-image-preview');
@@ -966,18 +1147,69 @@ class ThongKeSanPham {
     }
   }
 
-  openWarehouseModal(section, productId) {
+  openWarehouseModal(section, productId, entryIndex = null) {
     this.warehouseProductId = productId;
+    this.warehouseEntryIndex = entryIndex;
     const product = this.products.find(p => p._id === productId);
     
-    // Fill form if product has warehouse data
-    if (product) {
-      const entryDate = this.formatDateForInput(product.warehouseEntryDate);
-      section.querySelector('#warehouse-entry-date').value = entryDate || '';
-      section.querySelector('#warehouse-quantity').value = product.warehouseQuantity || 0;
+    const modalTitle = section.querySelector('#warehouse-modal-title');
+    const deleteBtn = section.querySelector('#warehouse-delete-btn');
+    const entryIndexInput = section.querySelector('#warehouse-entry-index');
+    
+    // Set modal title and show/hide delete button
+    if (entryIndex !== null && entryIndex !== undefined) {
+      // Editing existing entry
+      if (modalTitle) modalTitle.textContent = 'Chỉnh sửa lần nhập kho';
+      if (deleteBtn) deleteBtn.style.display = 'inline-block';
+      if (entryIndexInput) entryIndexInput.value = entryIndex;
+      
+      // Fill form with existing entry data
+      if (product && product.warehouseEntries && product.warehouseEntries[entryIndex]) {
+        const entry = product.warehouseEntries[entryIndex];
+        const entryDate = this.formatDateForInput(entry.date);
+        section.querySelector('#warehouse-entry-date').value = entryDate || '';
+        section.querySelector('#warehouse-quantity').value = entry.quantity || 0;
+      }
     } else {
+      // Adding new entry
+      if (modalTitle) modalTitle.textContent = 'Nhập kho';
+      if (deleteBtn) deleteBtn.style.display = 'none';
+      if (entryIndexInput) entryIndexInput.value = '';
+      
+      // Reset form
       section.querySelector('#warehouse-entry-date').value = '';
       section.querySelector('#warehouse-quantity').value = 0;
+    }
+    
+    // Set max quantity and display info
+    if (product) {
+      const currentEntries = product.warehouseEntries || [];
+      const totalQuantity = currentEntries.reduce((sum, entry, idx) => {
+        if (entryIndex !== null && idx === entryIndex) return sum; // Exclude current entry if editing
+        return sum + (entry.quantity || 0);
+      }, 0);
+      const maxQuantity = product.quantity || 0;
+      const availableQuantity = maxQuantity - totalQuantity;
+      
+      const quantityInput = section.querySelector('#warehouse-quantity');
+      const maxQuantityInfo = section.querySelector('#warehouse-max-quantity');
+      
+      if (quantityInput) {
+        quantityInput.setAttribute('max', availableQuantity);
+      }
+      
+      if (maxQuantityInfo) {
+        maxQuantityInfo.textContent = `Tối đa: ${this.formatNumber(availableQuantity)} (tổng số lượng sản phẩm: ${this.formatNumber(maxQuantity)}, đã nhập: ${this.formatNumber(totalQuantity)})`;
+      }
+    } else {
+      const quantityInput = section.querySelector('#warehouse-quantity');
+      const maxQuantityInfo = section.querySelector('#warehouse-max-quantity');
+      if (quantityInput) {
+        quantityInput.removeAttribute('max');
+      }
+      if (maxQuantityInfo) {
+        maxQuantityInfo.textContent = '';
+      }
     }
 
     // Open modal
@@ -993,28 +1225,77 @@ class ThongKeSanPham {
 
     const entryDate = section.querySelector('#warehouse-entry-date').value;
     const quantity = parseInt(section.querySelector('#warehouse-quantity').value) || 0;
+    const entryIndexInput = section.querySelector('#warehouse-entry-index');
+    const entryIndex = entryIndexInput && entryIndexInput.value !== '' ? parseInt(entryIndexInput.value) : null;
+    
+    // Validate warehouse quantity doesn't exceed product quantity
+    const product = this.products.find(p => p._id === this.warehouseProductId);
+    if (product) {
+      const currentEntries = product.warehouseEntries || [];
+      const totalQuantity = currentEntries.reduce((sum, entry, idx) => {
+        if (entryIndex !== null && idx === entryIndex) return sum; // Exclude current entry if editing
+        return sum + (entry.quantity || 0);
+      }, 0);
+      const maxQuantity = product.quantity || 0;
+      
+      if (totalQuantity + quantity > maxQuantity) {
+        alert(`Tổng số lượng nhập kho (${this.formatNumber(totalQuantity + quantity)}) không được vượt quá số lượng sản phẩm (${this.formatNumber(maxQuantity)})`);
+        return;
+      }
+    }
 
     try {
-      const response = await fetch(`${this.API_BASE_URL}/products/${this.warehouseProductId}`, {
-        method: 'PUT',
-        headers: {
-          'Content-Type': 'application/json'
-        },
-        body: JSON.stringify({
+      let response;
+      if (entryIndex !== null && entryIndex !== undefined) {
+        // Update existing entry
+        response = await fetch(`${this.API_BASE_URL}/products/${this.warehouseProductId}`, {
+          method: 'PUT',
+          headers: {
+            'Content-Type': 'application/json'
+          },
+          body: JSON.stringify({
+            updateWarehouseEntry: true,
+            entryIndex: entryIndex,
+            warehouseEntryDate: entryDate ? `${entryDate}T00:00:00` : null,
+            warehouseQuantity: quantity
+          })
+        });
+      } else {
+        // Add new entry
+        const requestBody = {
+          addWarehouseEntry: 'true',
           warehouseEntryDate: entryDate ? `${entryDate}T00:00:00` : null,
           warehouseQuantity: quantity
-        })
-      });
+        };
+        
+        response = await fetch(`${this.API_BASE_URL}/products/${this.warehouseProductId}`, {
+          method: 'PUT',
+          headers: {
+            'Content-Type': 'application/json'
+          },
+          body: JSON.stringify(requestBody)
+        });
+      }
 
       if (!response.ok) {
         const error = await response.json();
         throw new Error(error.error || 'Không thể cập nhật thông tin nhập kho');
       }
 
+      await response.json();
+
       // Reset form
       section.querySelector('#warehouse-entry-date').value = '';
       section.querySelector('#warehouse-quantity').value = 0;
+      const maxQuantityInfo = section.querySelector('#warehouse-max-quantity');
+      if (maxQuantityInfo) {
+        maxQuantityInfo.textContent = '';
+      }
+      if (entryIndexInput) {
+        entryIndexInput.value = '';
+      }
       this.warehouseProductId = null;
+      this.warehouseEntryIndex = null;
 
       // Close modal
       const modal = section.querySelector('#warehouse-modal');
@@ -1024,10 +1305,63 @@ class ThongKeSanPham {
 
       // Reload products
       await this.loadProducts(section);
-      alert('Đã cập nhật thông tin nhập kho thành công!');
+      alert(entryIndex !== null ? 'Đã cập nhật lần nhập kho thành công!' : 'Đã thêm lần nhập kho thành công!');
     } catch (error) {
       console.error('Error updating warehouse:', error);
       alert(`Lỗi khi cập nhật thông tin nhập kho: ${error.message}`);
+    }
+  }
+
+  async deleteWarehouseEntry(section) {
+    if (!this.warehouseProductId || this.warehouseEntryIndex === null || this.warehouseEntryIndex === undefined) return;
+
+    if (!confirm('Bạn có chắc chắn muốn xóa lần nhập kho này?')) {
+      return;
+    }
+
+    try {
+      const response = await fetch(`${this.API_BASE_URL}/products/${this.warehouseProductId}`, {
+        method: 'PUT',
+        headers: {
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify({
+          deleteWarehouseEntry: true,
+          entryIndex: this.warehouseEntryIndex
+        })
+      });
+
+      if (!response.ok) {
+        const error = await response.json();
+        throw new Error(error.error || 'Không thể xóa lần nhập kho');
+      }
+
+      // Reset form
+      section.querySelector('#warehouse-entry-date').value = '';
+      section.querySelector('#warehouse-quantity').value = 0;
+      const maxQuantityInfo = section.querySelector('#warehouse-max-quantity');
+      if (maxQuantityInfo) {
+        maxQuantityInfo.textContent = '';
+      }
+      const entryIndexInput = section.querySelector('#warehouse-entry-index');
+      if (entryIndexInput) {
+        entryIndexInput.value = '';
+      }
+      this.warehouseProductId = null;
+      this.warehouseEntryIndex = null;
+
+      // Close modal
+      const modal = section.querySelector('#warehouse-modal');
+      if (modal) {
+        modal.dataset.open = 'false';
+      }
+
+      // Reload products
+      await this.loadProducts(section);
+      alert('Đã xóa lần nhập kho thành công!');
+    } catch (error) {
+      console.error('Error deleting warehouse entry:', error);
+      alert(`Lỗi khi xóa lần nhập kho: ${error.message}`);
     }
   }
 
@@ -1134,6 +1468,42 @@ class ThongKeSanPham {
       });
     }
 
+    const warehouseDeleteBtn = section.querySelector('#warehouse-delete-btn');
+    if (warehouseDeleteBtn) {
+      warehouseDeleteBtn.addEventListener('click', () => {
+        this.deleteWarehouseEntry(section);
+      });
+    }
+
+    // Filter event listeners
+    const filterSearch = section.querySelector('#filter-search');
+    const filterStatus = section.querySelector('#filter-status');
+    const resetFilterBtn = section.querySelector('#reset-filter');
+
+    if (filterSearch) {
+      filterSearch.addEventListener('input', (e) => {
+        this.filters.search = e.target.value;
+        this.applyFilters(section);
+      });
+    }
+
+    if (filterStatus) {
+      filterStatus.addEventListener('change', (e) => {
+        this.filters.status = e.target.value;
+        this.applyFilters(section);
+      });
+    }
+
+    if (resetFilterBtn) {
+      resetFilterBtn.addEventListener('click', () => {
+        this.filters.search = '';
+        this.filters.status = '';
+        if (filterSearch) filterSearch.value = '';
+        if (filterStatus) filterStatus.value = '';
+        this.applyFilters(section);
+      });
+    }
+
     // Reset add form when modal closes
     const addModal = section.querySelector('#add-product-modal');
     if (addModal) {
@@ -1142,10 +1512,126 @@ class ThongKeSanPham {
           if (mutation.attributeName === 'data-open' && addModal.dataset.open === 'false') {
             addForm.reset();
             imagePreview.style.display = 'none';
+            // Reset workshop dropdown
+            const workshopNewWrapper = section.querySelector('#workshop-new-input-wrapper');
+            if (workshopNewWrapper) workshopNewWrapper.style.display = 'none';
+            const workshopSelect = section.querySelector('#workshop');
+            if (workshopSelect) workshopSelect.value = '';
           }
         });
       });
       observer.observe(addModal, { attributes: true });
+    }
+
+    // Workshop dropdown handlers for add form
+    const workshopSelect = section.querySelector('#workshop');
+    const workshopNewWrapper = section.querySelector('#workshop-new-input-wrapper');
+    const workshopNewName = section.querySelector('#workshop-new-name');
+    const workshopSaveBtn = section.querySelector('#workshop-save-btn');
+    const workshopCancelBtn = section.querySelector('#workshop-cancel-btn');
+
+    if (workshopSelect) {
+      workshopSelect.addEventListener('change', (e) => {
+        if (e.target.value === '__add_new__') {
+          workshopNewWrapper.style.display = 'block';
+          workshopNewName.focus();
+        } else {
+          workshopNewWrapper.style.display = 'none';
+          workshopNewName.value = '';
+        }
+      });
+    }
+
+    if (workshopSaveBtn) {
+      workshopSaveBtn.addEventListener('click', () => {
+        this.addNewWorkshop(section, workshopNewName.value, workshopSelect, workshopNewWrapper);
+      });
+    }
+
+    if (workshopCancelBtn) {
+      workshopCancelBtn.addEventListener('click', () => {
+        workshopNewWrapper.style.display = 'none';
+        workshopNewName.value = '';
+        workshopSelect.value = '';
+      });
+    }
+
+    // Workshop dropdown handlers for edit form
+    const editWorkshopSelect = section.querySelector('#edit-workshop');
+    const editWorkshopNewWrapper = section.querySelector('#edit-workshop-new-input-wrapper');
+    const editWorkshopNewName = section.querySelector('#edit-workshop-new-name');
+    const editWorkshopSaveBtn = section.querySelector('#edit-workshop-save-btn');
+    const editWorkshopCancelBtn = section.querySelector('#edit-workshop-cancel-btn');
+
+    if (editWorkshopSelect) {
+      editWorkshopSelect.addEventListener('change', (e) => {
+        if (e.target.value === '__add_new__') {
+          editWorkshopNewWrapper.style.display = 'block';
+          editWorkshopNewName.focus();
+        } else {
+          editWorkshopNewWrapper.style.display = 'none';
+          editWorkshopNewName.value = '';
+        }
+      });
+    }
+
+    if (editWorkshopSaveBtn) {
+      editWorkshopSaveBtn.addEventListener('click', () => {
+        this.addNewWorkshop(section, editWorkshopNewName.value, editWorkshopSelect, editWorkshopNewWrapper);
+      });
+    }
+
+    if (editWorkshopCancelBtn) {
+      editWorkshopCancelBtn.addEventListener('click', () => {
+        editWorkshopNewWrapper.style.display = 'none';
+        editWorkshopNewName.value = '';
+        editWorkshopSelect.value = '';
+      });
+    }
+  }
+
+  async addNewWorkshop(section, workshopName, selectElement, wrapperElement) {
+    if (!workshopName || !workshopName.trim()) {
+      alert('Vui lòng nhập tên xưởng');
+      return;
+    }
+
+    try {
+      const response = await fetch(`${this.API_BASE_URL}/workshops`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify({ name: workshopName.trim() })
+      });
+
+      if (!response.ok) {
+        const error = await response.json();
+        throw new Error(error.error || 'Không thể thêm xưởng mới');
+      }
+
+      const newWorkshop = await response.json();
+      
+      // Add to workshops array
+      this.workshops.push(newWorkshop);
+      
+      // Update dropdowns
+      this.populateWorkshopDropdowns(section);
+      
+      // Set the new workshop as selected
+      selectElement.value = newWorkshop.name;
+      
+      // Hide input wrapper
+      wrapperElement.style.display = 'none';
+      
+      // Clear input
+      const inputElement = wrapperElement.querySelector('input');
+      if (inputElement) inputElement.value = '';
+      
+      alert('Đã thêm xưởng mới thành công!');
+    } catch (error) {
+      console.error('Error adding workshop:', error);
+      alert(`Lỗi khi thêm xưởng: ${error.message}`);
     }
   }
 }
